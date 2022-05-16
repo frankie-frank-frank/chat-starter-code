@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="/public/styles.css">
+  <link rel="icon" href="/public/favicon.ico" type="image/x-icon" />
+  <script src="/utils/constants.js"></script>
+  <title>ChatCademy</title>
+</head>
+<body>
+  <h2>ChatCademy</h2>
+  <div class="chat">
+    <!-- Messages will appear here -->
+  </div>
+  <form id="messageForm">
+    <input type="text" id="messageBox" placeholder="Type your message here" />
+    <button id="send" title="Send">➤</button>
+  </form>
+  
+  <script> 
+    let wsClient; 
+    const username = prompt('Enter a username')
+    
+    const messageBox = document.querySelector('#messageBox');
+    const messageForm = document.querySelector('#messageForm');
+      
+    messageForm.onsubmit = function(e) {
+      e.preventDefault();
+      
+      const message = messageBox.value;
+      showMessageSent(message);
+      messageBox.value = '';
+      
+      sendMessageToServer(message);
+    }
+
+    function init() {
+
+      if (wsClient) {
+        wsClient.onerror = wsClient.onopen = wsClient.onclose = null;
+        wsClient.close();
+      }
+      const URL = 'ws://localhost:' + PORT;
+      wsClient = new WebSocket(URL)
+      wsClient.onopen = () => {
+        console.log('Web socket connection has been established')
+        const data = {
+          type: CLIENT.MESSAGE.NEW_USER,
+          payload: {username}
+        }
+        wsClient.send(JSON.stringify(data))
+      }
+        wsClient.onmessage = (messageEvent) => {
+          const message = messageEvent.data;
+          const { type, payload} = JSON.parse(message);
+          switch(type){
+            case SERVER.BROADCAST.NEW_USER_WITH_TIME:
+              showMessageReceived('<em>' + payload.username + ' has joined at ' + payload.time + '!</em>')
+              break;
+            case CLIENT.MESSAGE.NEW_MESSAGE:
+              showMessageReceived(`<strong>${payload.username}</strong> ${payload.message}`)
+              break;
+            default:
+              break;
+          }
+        }
+      wsClient.onclose = (event) => {
+        showMessageReceived('No WebSocket connection :(');
+        wsClient = null;
+      }
+      wsClient.onerror = (event) => {
+        console.error("WebSocket error observed:", event);
+        wsClient = null;
+      }
+    }
+
+    function sendMessageToServer(message) {
+      if (!wsClient) {
+        showMessageReceived('No WebSocket connection :(');
+        return;
+      }
+      const data = {
+        type: CLIENT.MESSAGE.NEW_MESSAGE,
+        payload: {message, username}
+      }
+      wsClient.send(JSON.stringify(data));
+    }
+    const messages = document.querySelector('.chat');
+
+    function showMessageSent(message) { 
+      showNewMessage(message, 'sending'); 
+    }
+    function showMessageReceived(message) {
+      showNewMessage(message, 'receiving'); 
+    }
+    
+    function showNewMessage(message, className) {
+      const textNode = document.createElement('div');
+      textNode.innerHTML = message;
+      textNode.className = 'message';
+      
+      const messageNode = document.createElement('div');
+      messageNode.className = 'messages ' + className;
+      messageNode.appendChild(textNode);
+      
+      messages.appendChild(messageNode);
+      messages.scrollTop = messages.scrollHeight;
+    }
+
+    init();
+
+  </script>
+</body>
+</html>
